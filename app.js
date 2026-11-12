@@ -49,7 +49,17 @@ function haptic(kind) {
 
 function initTelegram() {
   const t = tg();
-  if (!t) return;
+  if (!t) {
+    // Скрипт Telegram ещё не загрузился: сообщаем приложению напрямую,
+    // что страница готова, иначе оно держит белую заглушку.
+    try {
+      if (window.TelegramWebviewProxy) {
+        window.TelegramWebviewProxy.postEvent('web_app_ready', '');
+        window.TelegramWebviewProxy.postEvent('web_app_expand', '');
+      }
+    } catch (e) { /* не в Telegram */ }
+    return;
+  }
   try {
     t.ready();
     t.expand();
@@ -628,12 +638,24 @@ async function init() {
   $('toggle').addEventListener('click', togglePlay);
   audio.addEventListener('play', updateToggle);
   audio.addEventListener('pause', updateToggle);
-  audio.addEventListener('ended', backToWheel);
+  // К ленте возвращаемся только когда песня действительно доиграла.
+  // Встроенный браузер Telegram может прислать «конец» или «ошибку» ещё
+  // во время подготовки звука — такие события не должны сбрасывать экран.
+  audio.addEventListener('ended', () => {
+    if (state !== 'karaoke' || counting) return;
+    const d = audio.duration;
+    if (audio.currentTime < 5 || (isFinite(d) && audio.currentTime < d - 3)) return;
+    backToWheel();
+  });
   audio.addEventListener('error', () => {
-    if (state === 'karaoke') {
-      $('lyrics-inner').innerHTML = '<div class="line active">Не удалось загрузить трек 😔</div>';
-      setTimeout(backToWheel, 2500);
-    }
+    if (state !== 'karaoke' || counting) return;
+    const code = audio.error ? audio.error.code : 0;
+    $('lyrics-inner').innerHTML = '';
+    const el = document.createElement('div');
+    el.className = 'line active';
+    el.textContent = `Не удалось загрузить трек (код ${code}). Нажми ✕ и выбери другую песню.`;
+    $('lyrics-inner').appendChild(el);
+    $('lyrics-inner').style.transform = 'translateY(0)';
   });
 
   // Версия «архивом» открывается двойным щелчком, без сервера: там список песен
