@@ -1,0 +1,47 @@
+[
+  {
+    "title": "ДИНАСТИЯ",
+    "artist": "VILLIAN, madk1d",
+    "audio": "tracks/dinastiya.mp3",
+    "lrc": "tracks/dinastiya.lrc",
+    "cover": "tracks/dinastiya.jpg"
+  },
+  {
+    "title": "Ты моя",
+    "artist": "tndxex",
+    "cover": "tracks/cover1.jpg"
+  },
+  {
+    "title": "Ты не бойся ночи",
+    "artist": "ENZRO",
+    "cover": "tracks/cover2.jpg",
+    "audio": "tracks/ne-boysya-nochi.mp3",
+    "lrc": "tracks/ne-boysya-nochi.lrc"
+  },
+  {
+    "title": "Я ТЕБЯ МОГНУ",
+    "artist": "ЦУЕФА, Вирсавия, Милана Некрасова, LIZOGUB, Давид Туров",
+    "cover": "tracks/cover3.jpg",
+    "audio": "tracks/mognu.mp3",
+    "lrc": "tracks/mognu.lrc"
+  },
+  {
+    "title": "Dungeon Парилка",
+    "artist": "",
+    "cover": "tracks/cover4.jpg"
+  },
+  {
+    "title": "Ворона",
+    "artist": "Кэнни, МС Дымка",
+    "cover": "tracks/cover5.jpg",
+    "audio": "tracks/vorona.mp3",
+    "lrc": "tracks/vorona.lrc"
+  },
+  {
+    "title": "Нет, мне не нужен пельмень",
+    "artist": "Егор Крид",
+    "audio": "tracks/pelmen.mp3",
+    "lrc": "tracks/pelmen.lrc",
+    "cover": "tracks/pelmen.jpg"
+  }
+]
