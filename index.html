@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <title>Караоке-фортуна</title>
-  <script async src="telegram-web-app.js"></script>
-  <link rel="stylesheet" href="style.css">
+  <script async src="telegram-web-app.js?v=1113160050"></script>
+  <link rel="stylesheet" href="style.css?v=1113160050">
 </head>
 <body>
   <main id="wheel-screen" class="screen active">
@@ -51,6 +51,11 @@
       <div id="countdown-num" class="countdown-num">5</div>
     </div>
 
+    <button id="tapstart" type="button">
+      <span class="tapstart-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.500v15a1 1 0 0 0 1.500.860l12.500-7.500a1 1 0 0 0 0-1.720L8.500 3.640A1 1 0 0 0 7 4.500z"/></svg></span>
+      <span class="tapstart-label">Нажми, чтобы начать</span>
+    </button>
+
     <footer class="k-foot">
       <div class="bar"><div id="bar-fill"></div></div>
       <div class="times"><span id="t-cur">0:00</span><span id="t-dur">0:00</span></div>
@@ -62,7 +67,7 @@
   </main>
 
   <audio id="audio" preload="auto" playsinline></audio>
-  <script src="data.js"></script>
-  <script src="app.js"></script>
+  <script src="data.js?v=1113160050"></script>
+  <script src="app.js?v=1113160050"></script>
 </body>
 </html>

@@ -34,6 +34,33 @@ let counting = false;
 let idleRaf = 0;
 let chosen = null; // выпавшая песня, ждёт кнопки «петь»: { track, index, lyricsPromise }
 
+// ---------- Диагностика ----------
+// Включается ссылкой с ?debug=1: поверх страницы появляется журнал событий.
+// Журнал переживает перезагрузку страницы, чтобы было видно и её.
+const DEBUG = /[?&]debug/.test(location.search);
+const APP_VERSION = '2026-11-13-a';
+function dbg(msg) {
+  if (!DEBUG) return;
+  let box = document.getElementById('dbg');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'dbg';
+    box.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99;max-height:38vh;overflow:auto;'
+      + 'background:rgba(0,0,0,.82);color:#7CFC9A;font:11px/1.35 Menlo,monospace;padding:6px 8px;'
+      + 'white-space:pre-wrap;pointer-events:none;';
+    document.body.appendChild(box);
+  }
+  let lines = [];
+  try { lines = JSON.parse(sessionStorage.getItem('dbg') || '[]'); } catch (e) { /* нет хранилища */ }
+  const t = new Date();
+  const stamp = `${String(t.getMinutes()).padStart(2, '0')}:${String(t.getSeconds()).padStart(2, '0')}.${String(t.getMilliseconds()).padStart(3, '0')}`;
+  lines.push(`${stamp} ${msg}`);
+  lines = lines.slice(-40);
+  try { sessionStorage.setItem('dbg', JSON.stringify(lines)); } catch (e) { /* нет хранилища */ }
+  box.textContent = lines.join('\n');
+  box.scrollTop = box.scrollHeight;
+}
+
 const tg = () => (window.Telegram && window.Telegram.WebApp) || null;
 
 function haptic(kind) {
@@ -386,26 +413,28 @@ async function sing() {
   chosen = null;
   // Готовим звук прямо в обработчике нажатия: иначе телефон
   // не даст запустить музыку после отсчёта.
+  dbg(`sing: ${track.audio}`);
   primeAudio(track);
   state = 'starting';
   const parsed = await lyricsPromise;
+  dbg(`lyrics ready: ${parsed.length} lines`);
   startKaraoke(track, index, parsed);
+  dbg('karaoke screen shown, countdown started');
 }
 
 // ---------- Звук и текст ----------
 
+// Запускаем трек прямо в обработчике нажатия, но без звука, и НЕ останавливаем:
+// весь отсчёт он играет беззвучно. После отсчёта остаётся только перемотать
+// в начало и включить звук. Отдельный запуск после отсчёта встроенный браузер
+// Telegram блокирует — нажатия пользователя в этот момент уже нет.
 function primeAudio(track) {
   audio.src = track.audio;
   audio.muted = true;
   const p = audio.play();
   if (p && p.then) {
-    p.then(() => {
-      // до конца отсчёта звук должен молчать
-      if (state !== 'karaoke' || counting) {
-        audio.pause();
-        audio.currentTime = 0;
-      }
-    }).catch(() => {});
+    p.then(() => dbg('silent start ok'))
+     .catch((e) => dbg(`silent start rejected: ${e && e.name}`));
   }
 }
 
@@ -529,11 +558,44 @@ function startCountdown() {
 }
 
 function play() {
+  dbg(`countdown done: paused=${audio.paused} t=${(audio.currentTime || 0).toFixed(2)} rs=${audio.readyState}`);
+  try { audio.currentTime = 0; } catch (e) { /* ещё не загрузилось */ }
+  audio.muted = false;
+  if (audio.paused) {
+    const p = audio.play();
+    if (p && p.then) {
+      p.then(() => dbg('play() ok'))
+       .catch((e) => { dbg(`play() rejected: ${e && e.name}`); askTap(); });
+    }
+  }
+  // Браузер мог сам поставить трек на паузу при включении звука — проверяем чуть позже.
+  setTimeout(() => {
+    if (state !== 'karaoke' || counting) return;
+    if (audio.paused || audio.muted) askTap();
+    else dbg(`playing, t=${audio.currentTime.toFixed(2)}`);
+  }, 700);
+  updateToggle();
+}
+
+// Запасной путь: если браузер всё же не дал включить музыку сам,
+// показываем большую кнопку — одно нажатие запускает песню.
+function askTap() {
+  if (state !== 'karaoke') return;
+  dbg('need tap to start');
+  $('tapstart').classList.add('show');
+  updateToggle();
+}
+
+function tapStart() {
+  $('tapstart').classList.remove('show');
+  if (state !== 'karaoke') return;
   audio.muted = false;
   try { audio.currentTime = 0; } catch (e) { /* ещё не загрузилось */ }
   const p = audio.play();
-  // если телефон не дал запустить звук сам — кнопка останется в виде «плей»
-  if (p && p.catch) p.catch(() => updateToggle());
+  if (p && p.then) {
+    p.then(() => dbg('tap start ok'))
+     .catch((e) => { dbg(`tap start rejected: ${e && e.name}`); askTap(); });
+  }
 }
 
 // Кнопка пауза/плей
@@ -557,6 +619,8 @@ function updateToggle() {
 
 function tick() {
   if (state !== 'karaoke') return;
+  // во время отсчёта трек играет беззвучно — время и текст пока не трогаем
+  if (counting) { rafId = requestAnimationFrame(tick); return; }
   const t = audio.currentTime || 0;
   const d = audio.duration;
 
@@ -592,13 +656,15 @@ function setActiveLine(idx) {
   inner.style.transform = `translateY(${-offset}px)`;
 }
 
-function backToWheel() {
+function backToWheel(reason) {
+  dbg(`backToWheel(${typeof reason === 'string' ? reason : 'exit button'}) state=${state}`);
   if (state !== 'karaoke') return;
   state = 'wheel';
   cancelAnimationFrame(rafId);
   clearTimeout(countdownTimer);
   counting = false;
   $('countdown').classList.remove('show');
+  $('tapstart').classList.remove('show');
   audio.pause();
   releaseWakeLock();
 
@@ -636,8 +702,21 @@ async function init() {
   $('sing').addEventListener('click', sing);
   $('exit').addEventListener('click', backToWheel);
   $('toggle').addEventListener('click', togglePlay);
+  $('tapstart').addEventListener('click', tapStart);
   audio.addEventListener('play', updateToggle);
   audio.addEventListener('pause', updateToggle);
+  if (DEBUG) {
+    dbg(`boot v${APP_VERSION} tg=${!!tg()} ua=${navigator.userAgent.slice(0, 90)}`);
+    ['play', 'playing', 'pause', 'ended', 'error', 'abort', 'emptied', 'stalled', 'waiting', 'loadedmetadata', 'canplay'].forEach((ev) => {
+      audio.addEventListener(ev, () => dbg(`audio ${ev} t=${(audio.currentTime || 0).toFixed(2)} d=${audio.duration} rs=${audio.readyState}`
+        + (audio.error ? ` err=${audio.error.code}` : '') + ` state=${state} counting=${counting}`));
+    });
+    window.addEventListener('pagehide', () => dbg('pagehide'));
+    document.addEventListener('visibilitychange', () => dbg(`visibility ${document.visibilityState}`));
+    window.addEventListener('error', (e) => dbg(`JS error: ${e.message} @${e.lineno}`));
+    window.addEventListener('unhandledrejection', (e) => dbg(`promise rejection: ${e.reason && (e.reason.name || e.reason)}`));
+  }
+
   // К ленте возвращаемся только когда песня действительно доиграла.
   // Встроенный браузер Telegram может прислать «конец» или «ошибку» ещё
   // во время подготовки звука — такие события не должны сбрасывать экран.
@@ -645,7 +724,7 @@ async function init() {
     if (state !== 'karaoke' || counting) return;
     const d = audio.duration;
     if (audio.currentTime < 5 || (isFinite(d) && audio.currentTime < d - 3)) return;
-    backToWheel();
+    backToWheel('song ended');
   });
   audio.addEventListener('error', () => {
     if (state !== 'karaoke' || counting) return;
