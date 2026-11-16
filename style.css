@@ -216,6 +216,10 @@ h1 {
   text-transform: uppercase;
   letter-spacing: .02em;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   box-shadow: 0 8px 24px rgba(255, 210, 63, .25);
   transition: transform .18s ease, box-shadow .18s ease, opacity .2s ease;
 }
@@ -415,3 +419,240 @@ h1 {
 }
 .tapstart-icon svg { width: 50px; height: 50px; margin-left: 6px; fill: currentColor; }
 .tapstart-label { font-size: 20px; font-weight: 800; }
+
+/* ---------- Монеты ---------- */
+
+.coin { display: block; flex: none; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .35)); }
+
+.topbar {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+}
+
+/* бейдж баланса: только монета и число, без подложки */
+.coins {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, .5);
+}
+.coins .coin { width: 32px; height: 35px; }
+
+.coin-delta {
+  position: absolute;
+  left: 40px;
+  top: 100%;
+  font-size: 18px;
+  font-weight: 800;
+  pointer-events: none;
+  animation: delta-float 1.050s ease-out forwards;
+}
+.coin-delta.plus { color: #7dffa8; }
+.coin-delta.minus { color: #ff8f8f; }
+@keyframes delta-float {
+  0% { transform: translateY(-4px); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translateY(22px); opacity: 0; }
+}
+
+#history-open {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .1);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+#history-open svg { width: 22px; height: 22px; }
+
+.price {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 11px 3px 4px;
+  border-radius: 999px;
+  background: #1a1330;
+  color: var(--accent);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  font-style: normal;
+  letter-spacing: 0;
+}
+.price .coin { width: 20px; height: 22px; filter: none; }
+
+.fly-coin {
+  position: fixed;
+  z-index: 60;
+  width: 30px;
+  height: 33px;
+  margin: -16px 0 0 -15px;
+  pointer-events: none;
+  transition: transform .7s cubic-bezier(.5, 0, .3, 1), opacity .7s ease-in;
+}
+.fly-coin svg { width: 100%; height: 100%; display: block; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  top: calc(64px + env(safe-area-inset-top));
+  z-index: 70;
+  max-width: calc(100% - 32px);
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: rgba(20, 16, 36, .95);
+  border: 1px solid rgba(255, 210, 63, .5);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -10px);
+  transition: opacity .3s ease, transform .3s ease;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- Оценка после песни ---------- */
+
+#rating-screen {
+  align-items: center;
+  background: linear-gradient(180deg, var(--track) 0%, color-mix(in srgb, var(--track) 30%, #000) 100%);
+}
+.rate-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.rate-cover {
+  width: min(42vw, 180px);
+  aspect-ratio: 1;
+  border-radius: 20px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, .25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 54px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .45);
+}
+.rate-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rate-title { margin-top: 16px; font-size: 24px; font-weight: 800; }
+.rate-artist { margin-top: 2px; font-size: 15px; color: rgba(255, 255, 255, .75); }
+.rate-q { margin-top: 26px; font-size: 20px; font-weight: 800; }
+
+.stars { display: flex; gap: 6px; margin-top: 12px; }
+.star {
+  width: 52px;
+  height: 52px;
+  padding: 4px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transition: transform .15s ease;
+}
+.star svg { width: 100%; height: 100%; fill: rgba(255, 255, 255, .14); stroke: rgba(255, 255, 255, .7); stroke-width: 1.500; transition: fill .15s ease, stroke .15s ease; }
+.star.on svg { fill: var(--accent); stroke: var(--accent); filter: drop-shadow(0 0 8px rgba(255, 210, 63, .6)); }
+.star.on { transform: scale(1.08); }
+.star:active { transform: scale(.9); }
+
+.rate-reward {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 26px;
+  padding: 10px 20px 10px 12px;
+  border-radius: 18px;
+  background: rgba(0, 0, 0, .28);
+  text-align: left;
+  opacity: .45;
+  transition: opacity .25s ease, transform .25s ease;
+}
+.rate-reward .coin { width: 52px; height: 57px; }
+.rate-reward.won { opacity: 1; animation: reward-pop .45s ease-out; }
+@keyframes reward-pop { 0% { transform: scale(.9); } 55% { transform: scale(1.1); } 100% { transform: scale(1); } }
+.rate-plus { font-size: 28px; font-weight: 800; line-height: 1; color: var(--accent); }
+.rate-note { margin-top: 2px; font-size: 13px; color: rgba(255, 255, 255, .8); }
+
+#rate-done {
+  flex: none;
+  width: 100%;
+  max-width: 440px;
+  padding: 18px 24px;
+  border: 0;
+  border-radius: 18px;
+  background: #fff;
+  color: #1a1330;
+  font-family: "Druk Text Wide Cyr", "Dela Gothic One", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 18px;
+  font-style: italic;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity .2s ease, transform .12s ease;
+}
+#rate-done:disabled { opacity: .4; cursor: default; }
+#rate-done:active:not(:disabled) { transform: scale(.97); }
+
+/* ---------- История песен ---------- */
+
+#history-screen { background: var(--bg); }
+.h-head { flex: none; display: flex; align-items: center; justify-content: space-between; }
+.h-head h2 { font-size: 24px; font-weight: 800; }
+#history-close {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .1);
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+}
+.h-stats { flex: none; display: flex; gap: 10px; margin: 16px 0 8px; }
+.h-stats > div { flex: 1; padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, .07); }
+.h-stats span { display: block; font-size: 13px; color: var(--muted); }
+.h-stats b { display: block; margin-top: 2px; font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.h-list { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.h-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, .1); }
+.h-thumb {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, .08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+.h-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.h-text { flex: 1; min-width: 0; }
+.h-title { font-size: 16px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.h-sub { margin-top: 2px; font-size: 13px; color: var(--muted); }
+.h-count { flex: none; font-size: 20px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+.h-empty { padding: 40px 10px; text-align: center; color: var(--muted); font-size: 15px; }
+
+/* Невысокие экраны: с полосой баланса сверху заголовку и ленте нужно чуть меньше места */
+@media (max-height: 700px) {
+  .reel { --s: min(62vw, 21vh, 280px); }
+  h1 { font-size: min(36px, 10.500vw); }
+}

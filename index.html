@@ -4,12 +4,48 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <title>Караоке-фортуна</title>
-  <script async src="telegram-web-app.js?v=1116200357"></script>
-  <link rel="stylesheet" href="style.css?v=1116200357">
+  <script async src="telegram-web-app.js?v=1116203929"></script>
+  <link rel="stylesheet" href="style.css?v=1116203929">
 </head>
 <body>
+  <!-- Общие картинки: объёмная золотая монета и звезда -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="cg-edge" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#7a4300"/><stop offset=".5" stop-color="#d8930d"/><stop offset="1" stop-color="#7a4300"/>
+      </linearGradient>
+      <linearGradient id="cg-face" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#fff6c2"/><stop offset=".3" stop-color="#ffd84a"/><stop offset=".65" stop-color="#f4ab0c"/><stop offset="1" stop-color="#c47b00"/>
+      </linearGradient>
+      <radialGradient id="cg-in" cx=".36" cy=".3" r=".95">
+        <stop offset="0" stop-color="#ffdd63"/><stop offset=".55" stop-color="#f0a40a"/><stop offset="1" stop-color="#b56b00"/>
+      </radialGradient>
+    </defs>
+    <symbol id="coin" viewBox="0 0 40 44">
+      <path d="M2 20v4a18 18 0 0 0 36 0v-4z" fill="url(#cg-edge)"/>
+      <circle cx="20" cy="20" r="18" fill="url(#cg-face)"/>
+      <circle cx="20" cy="20" r="13.500" fill="url(#cg-in)" stroke="#b06a00" stroke-width="1"/>
+      <circle cx="20" cy="20" r="12.400" fill="none" stroke="#ffe996" stroke-width=".8" opacity=".85"/>
+      <path d="M6.500 15.500A14.500 14.500 0 0 1 19 5.200" fill="none" stroke="#fffbe6" stroke-width="2.600" stroke-linecap="round" opacity=".9"/>
+      <path d="M17 13.200h7.500v3H20v9.200a3.300 3.300 0 1 1-3-3.250z" fill="#8a5200"/>
+      <path d="M17 12.200h7.500v3H20v9.200a3.300 3.300 0 1 1-3-3.250z" fill="#fff0a8"/>
+    </symbol>
+    <symbol id="star" viewBox="0 0 24 24">
+      <path d="M12 2.300l3 6.200 6.800.9-5 4.800 1.300 6.800L12 17.700 5.900 21l1.300-6.800-5-4.800 6.800-.9z" stroke-linejoin="round"/>
+    </symbol>
+  </svg>
+
   <main id="wheel-screen" class="screen active">
     <canvas id="lines" aria-hidden="true"></canvas>
+    <div class="topbar">
+      <div id="coins" class="coins" aria-label="Баланс монет">
+        <svg class="coin" viewBox="0 0 40 44" aria-hidden="true"><use href="#coin"/></svg>
+        <span id="coins-num">1000</span>
+      </div>
+      <button id="history-open" type="button" aria-label="История песен">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.500 12a8.500 8.500 0 1 0 2.600-6.100"/><path d="M3 4.500v4h4"/><path d="M12 7.500V12l3 2"/></svg>
+      </button>
+    </div>
     <div class="wheel-content">
       <h1>Караоке-<br>фортуна</h1>
 
@@ -27,7 +63,10 @@
     </div>
 
     <div class="actions">
-      <button id="spin" type="button">Вращать</button>
+      <button id="spin" type="button">
+        <span id="spin-label">Вращать</span>
+        <span class="price"><svg class="coin" viewBox="0 0 40 44" aria-hidden="true"><use href="#coin"/></svg><span id="spin-price">50</span></span>
+      </button>
       <button id="sing" type="button" aria-label="Петь">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3.500 3.500 0 0 0 3.500-3.500v-5a3.500 3.500 0 0 0-7 0v5A3.500 3.500 0 0 0 12 15z"/><path d="M18.500 11.500a.9.9 0 0 0-1.800 0 4.700 4.700 0 0 1-9.400 0 .9.9 0 0 0-1.800 0 6.500 6.500 0 0 0 5.600 6.430V20H9a.9.9 0 0 0 0 1.800h6a.9.9 0 0 0 0-1.800h-2.100v-2.070a6.500 6.500 0 0 0 5.600-6.430z"/></svg>
       </button>
@@ -66,8 +105,46 @@
     </footer>
   </main>
 
+  <main id="rating-screen" class="screen">
+    <div class="rate-body">
+      <div id="rate-cover" class="rate-cover"></div>
+      <div id="rate-title" class="rate-title"></div>
+      <div id="rate-artist" class="rate-artist"></div>
+      <div class="rate-q">Как спел?</div>
+      <div class="stars" id="stars">
+        <button class="star" type="button" data-v="1" aria-label="Оценка 1"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#star"/></svg></button>
+        <button class="star" type="button" data-v="2" aria-label="Оценка 2"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#star"/></svg></button>
+        <button class="star" type="button" data-v="3" aria-label="Оценка 3"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#star"/></svg></button>
+        <button class="star" type="button" data-v="4" aria-label="Оценка 4"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#star"/></svg></button>
+        <button class="star" type="button" data-v="5" aria-label="Оценка 5"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#star"/></svg></button>
+      </div>
+      <div id="rate-reward" class="rate-reward">
+        <svg class="coin" viewBox="0 0 40 44" aria-hidden="true"><use href="#coin"/></svg>
+        <div>
+          <div class="rate-plus">+<span id="rate-win">50</span></div>
+          <div class="rate-note">за пять звёзд</div>
+        </div>
+      </div>
+    </div>
+    <button id="rate-done" type="button" disabled>Готово</button>
+  </main>
+
+  <main id="history-screen" class="screen">
+    <header class="h-head">
+      <h2>История</h2>
+      <button id="history-close" type="button" aria-label="Закрыть историю">✕</button>
+    </header>
+    <div class="h-stats">
+      <div><span>Вращений</span><b id="h-spins">0</b></div>
+      <div><span>Спето</span><b id="h-sung">0</b></div>
+    </div>
+    <div id="h-list" class="h-list"></div>
+  </main>
+
+  <div id="toast" class="toast" role="status"></div>
+
   <audio id="audio" preload="auto" playsinline></audio>
-  <script src="data.js?v=1116200357"></script>
-  <script src="app.js?v=1116200357"></script>
+  <script src="data.js?v=1116203929"></script>
+  <script src="app.js?v=1116203929"></script>
 </body>
 </html>

@@ -8,6 +8,7 @@ const reelBox = $('reel');
 const strip = $('strip');
 const linesCanvas = $('lines');
 const spinBtn = $('spin');
+const spinLabel = $('spin-label');
 
 const COLORS = ['#7b2ff7', '#f72585', '#ff7a00', '#06a77d', '#2d7dd2', '#d7263d', '#8f2d56', '#218380'];
 const SPIN_MS = 9000;   // сколько крутится лента
@@ -15,6 +16,11 @@ const SPIN_ITEMS = 30;  // сколько обложек пролетает за
 const OVERSHOOT = 0.13;  // на какую долю обложки выпавшая медленно сползает ниже центра
 const SNAP_BACK = 0.09;  // на сколько она подскакивает выше центра при рывке обратно
 const LINES_COUNT = 34;   // сколько полосок скорости на экране одновременно
+const START_COINS = 1000; // стартовый баланс; к нему же возвращаемся, когда монеты кончились
+const SPIN_COST = 50;     // цена одного вращения
+const WIN_COINS = 50;     // награда за пять звёзд
+const EXIT_FINE = 100;    // штраф за выход из песни крестиком
+const STORE_KEY = 'karaoke-fortuna-v1';
 const SILENCE_URL = 'silence.wav'; // 2 секунды тишины для «разогрева» плеера
 const IDLE_SPEED = 0.22; // медленная прокрутка на стартовом экране, обложек в секунду
 const COUNTDOWN_S = 5;  // отсчёт перед началом песни, секунды
@@ -33,6 +39,9 @@ let audioCtx = null;
 let countdownTimer = 0;
 let counting = false;
 let idleRaf = 0;
+let nowIndex = 0;          // её номер в списке (нужен для цвета и обложки)
+let loadError = false;    // трек не загрузился — за выход не штрафуем
+let rating = 0;           // выбранная оценка на экране «Как спел?»
 let nowPlaying = null;   // песня, выбранная для караоке
 let trackLoaded = false; // в плеере уже песня, а не тишина
 let preloader = null;
@@ -42,7 +51,7 @@ let chosen = null; // выпавшая песня, ждёт кнопки «пе�
 // Включается ссылкой с ?debug=1: поверх страницы появляется журнал событий.
 // Журнал переживает перезагрузку страницы, чтобы было видно и её.
 const DEBUG = /[?&]debug/.test(location.search);
-const APP_VERSION = '2026-11-16-a';
+const APP_VERSION = '2026-11-16-b';
 function dbg(msg) {
   if (!DEBUG) return;
   let box = document.getElementById('dbg');
@@ -98,6 +107,217 @@ function initTelegram() {
     if (t.setHeaderColor) t.setHeaderColor('#12101c');
     if (t.setBackgroundColor) t.setBackgroundColor('#12101c');
   } catch (e) { /* старая версия клиента */ }
+}
+
+// ---------- Монеты и история ----------
+// Баланс и история лежат в памяти браузера: у каждого устройства свои.
+
+function loadWallet() {
+  const fresh = { coins: START_COINS, spins: 0, sung: 0, songs: {} };
+  try {
+    const w = JSON.parse(localStorage.getItem(STORE_KEY));
+    if (w && typeof w.coins === 'number') return Object.assign(fresh, w);
+  } catch (e) { /* хранилище недоступно — играем без сохранения */ }
+  return fresh;
+}
+
+function saveWallet() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(wallet)); } catch (e) { /* не сохранилось */ }
+}
+
+let wallet = loadWallet();
+let shownCoins = wallet.coins;
+let coinsRaf = 0;
+
+const fmtCoins = (n) => Math.round(n).toLocaleString('ru-RU');
+
+// Число на балансе плавно «докручивается» до нового значения.
+function renderCoins(animated) {
+  const el = $('coins-num');
+  cancelAnimationFrame(coinsRaf);
+  if (!animated) { shownCoins = wallet.coins; el.textContent = fmtCoins(shownCoins); return; }
+  const from = shownCoins;
+  const to = wallet.coins;
+  const t0 = performance.now();
+  const step = (now) => {
+    const p = Math.min(1, (now - t0) / 600);
+    shownCoins = from + (to - from) * (1 - Math.pow(1 - p, 3));
+    el.textContent = fmtCoins(shownCoins);
+    if (p < 1) coinsRaf = requestAnimationFrame(step);
+  };
+  coinsRaf = requestAnimationFrame(step);
+}
+
+// Всплывающее «+50» / «−100» рядом с балансом.
+function floatDelta(delta) {
+  const el = document.createElement('span');
+  el.className = 'coin-delta ' + (delta > 0 ? 'plus' : 'minus');
+  el.textContent = (delta > 0 ? '+' : '−') + Math.abs(delta);
+  $('coins').appendChild(el);
+  setTimeout(() => el.remove(), 1100);
+}
+
+let toastTimer = 0;
+function toast(text) {
+  const el = $('toast');
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+function refillIfEmpty() {
+  if (wallet.coins >= SPIN_COST) return false;
+  wallet.coins = START_COINS;
+  saveWallet();
+  renderCoins(true);
+  toast('Монеты закончились — баланс пополнен');
+  return true;
+}
+
+function changeCoins(delta) {
+  wallet.coins = Math.max(0, wallet.coins + delta);
+  saveWallet();
+  floatDelta(delta);
+  renderCoins(true);
+  // на вращение уже не хватает — через секунду выдаём новую тысячу
+  if (wallet.coins < SPIN_COST) setTimeout(refillIfEmpty, 1200);
+}
+
+// Монеты летят из центра экрана к балансу.
+function flyCoins(n) {
+  const target = $('coins').getBoundingClientRect();
+  const x0 = window.innerWidth / 2;
+  const y0 = window.innerHeight * 0.55;
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement('div');
+    el.className = 'fly-coin';
+    el.innerHTML = '<svg viewBox="0 0 40 44" aria-hidden="true"><use href="#coin"/></svg>';
+    const dx = (Math.random() - 0.5) * 120;
+    const dy = (Math.random() - 0.5) * 80;
+    el.style.left = `${x0 + dx}px`;
+    el.style.top = `${y0 + dy}px`;
+    document.body.appendChild(el);
+    setTimeout(() => {
+      el.style.transform = `translate(${target.left + 14 - x0 - dx}px, ${target.top + 14 - y0 - dy}px) scale(.5)`;
+      el.style.opacity = '0.2';
+    }, 60 + i * 55);
+    setTimeout(() => el.remove(), 900 + i * 55);
+  }
+}
+
+// Запись о песне в истории: сколько раз выпадала, сколько раз спета, лучшая оценка.
+function songStat(track) {
+  const key = track.audio || track.title;
+  if (!wallet.songs[key]) wallet.songs[key] = { title: track.title, artist: track.artist || '', cover: track.cover || '', dropped: 0, sung: 0, best: 0 };
+  const st = wallet.songs[key];
+  st.title = track.title;
+  st.artist = track.artist || '';
+  st.cover = track.cover || '';
+  return st;
+}
+
+function openHistory() {
+  $('h-spins').textContent = wallet.spins;
+  $('h-sung').textContent = wallet.sung;
+  const list = $('h-list');
+  list.innerHTML = '';
+  const rows = Object.values(wallet.songs).sort((a, b) => b.dropped - a.dropped || b.sung - a.sung);
+  if (!rows.length) {
+    const empty = document.createElement('div');
+    empty.className = 'h-empty';
+    empty.textContent = 'Пока пусто. Вращай ленту — песни появятся здесь.';
+    list.appendChild(empty);
+  }
+  for (const r of rows) {
+    const row = document.createElement('div');
+    row.className = 'h-row';
+    const thumb = document.createElement('div');
+    thumb.className = 'h-thumb';
+    if (r.cover) {
+      const img = document.createElement('img');
+      img.alt = '';
+      img.src = r.cover;
+      img.onerror = () => { img.remove(); thumb.textContent = '♪'; };
+      thumb.appendChild(img);
+    } else {
+      thumb.textContent = '♪';
+    }
+    const text = document.createElement('div');
+    text.className = 'h-text';
+    const title = document.createElement('div');
+    title.className = 'h-title';
+    title.textContent = r.title;
+    const sub = document.createElement('div');
+    sub.className = 'h-sub';
+    sub.textContent = r.sung ? `спета ${r.sung} · лучшая оценка ${r.best} из 5` : 'ещё не спета';
+    text.append(title, sub);
+    const count = document.createElement('div');
+    count.className = 'h-count';
+    count.textContent = `×${r.dropped}`;
+    row.append(thumb, text, count);
+    list.appendChild(row);
+  }
+  $('history-screen').classList.add('active');
+}
+
+function closeHistory() {
+  $('history-screen').classList.remove('active');
+}
+
+// ---------- Оценка после песни ----------
+
+function setRating(v) {
+  rating = v;
+  for (const b of document.querySelectorAll('#stars .star')) b.classList.toggle('on', Number(b.dataset.v) <= v);
+  $('rate-done').disabled = !v;
+  $('rate-reward').classList.toggle('won', v === 5);
+  if (v) haptic(v === 5 ? 'success' : 'light');
+}
+
+// Песня доиграла — спрашиваем у певца оценку.
+function showRating() {
+  if (!nowPlaying) { backToWheel('song ended'); return; }
+  setRating(0);
+  const cover = $('rate-cover');
+  cover.textContent = '';
+  if (nowPlaying.cover && !nowPlaying.coverBroken) {
+    const img = document.createElement('img');
+    img.alt = '';
+    img.src = nowPlaying.cover;
+    cover.appendChild(img);
+  } else {
+    cover.textContent = '♪';
+  }
+  $('rate-title').textContent = nowPlaying.title;
+  $('rate-artist').textContent = nowPlaying.artist || '';
+  $('rate-win').textContent = WIN_COINS;
+  $('rating-screen').classList.add('active');
+  dbg('rating shown');
+}
+
+function finishRating() {
+  if (!rating || !nowPlaying) return;
+  const st = songStat(nowPlaying);
+  st.sung += 1;
+  st.best = Math.max(st.best, rating);
+  wallet.sung += 1;
+  saveWallet();
+  const won = rating === 5;
+  dbg(`rated ${rating}`);
+  backToWheel('rated');
+  if (won) {
+    flyCoins(8);
+    setTimeout(() => changeCoins(WIN_COINS), 550);
+  }
+}
+
+// Выход крестиком посреди песни стоит монет (если трек вообще загрузился).
+function exitKaraoke() {
+  if (state !== 'karaoke') return;
+  const fine = !loadError;
+  backToWheel('exit button');
+  if (fine) changeCoins(-EXIT_FINE);
 }
 
 // ---------- Лента обложек ----------
@@ -294,8 +514,13 @@ function spin() {
   if ((state !== 'wheel' && state !== 'result') || !tracks.some((t) => t.audio)) return;
   state = 'spinning';
   chosen = null;
+  // платим за вращение; если монет не хватает — сначала пополняем баланс
+  refillIfEmpty();
+  changeCoins(-SPIN_COST);
+  wallet.spins += 1;
+  saveWallet();
   spinBtn.disabled = true;
-  spinBtn.textContent = 'Вращаем…';
+  spinLabel.textContent = 'Вращаем…';
   $('sing').classList.remove('show');
   $('result').classList.remove('show');
   reelBox.classList.remove('done');
@@ -403,12 +628,14 @@ function showResult(track, index, lyricsPromise) {
   $('result-title').textContent = track.title;
   $('result-artist').textContent = track.artist || '';
   $('result').classList.add('show');
+  songStat(track).dropped += 1; // в историю: песня выпала
+  saveWallet();
 
   // Караоке само не стартует: ждём кнопку «петь» или повторное вращение.
   chosen = { track, index, lyricsPromise };
   $('sing').classList.add('show');
   spinBtn.disabled = false;
-  spinBtn.textContent = 'Вращать';
+  spinLabel.textContent = 'Вращать';
 }
 
 async function sing() {
@@ -417,6 +644,7 @@ async function sing() {
   chosen = null;
   // Готовим звук прямо в обработчике нажатия: иначе телефон
   // не даст запустить музыку после отсчёта.
+  nowIndex = index;
   dbg(`sing: ${track.audio}`);
   primeAudio(track);
   state = 'starting';
@@ -436,6 +664,7 @@ async function sing() {
 function primeAudio(track) {
   nowPlaying = track;
   trackLoaded = false;
+  loadError = false;
   audio.muted = false;
   audio.loop = true;
   audio.src = SILENCE_URL;
@@ -685,6 +914,7 @@ function backToWheel(reason) {
   counting = false;
   $('countdown').classList.remove('show');
   $('tapstart').classList.remove('show');
+  $('rating-screen').classList.remove('active');
   audio.pause();
   audio.loop = false;
   nowPlaying = null;
@@ -700,7 +930,7 @@ function backToWheel(reason) {
   renderReel();
   startIdle();
   spinBtn.disabled = false;
-  spinBtn.textContent = 'Вращать';
+  spinLabel.textContent = 'Вращать';
 }
 
 async function requestWakeLock() {
@@ -722,7 +952,13 @@ async function init() {
 
   spinBtn.addEventListener('click', spin);
   $('sing').addEventListener('click', sing);
-  $('exit').addEventListener('click', backToWheel);
+  $('exit').addEventListener('click', exitKaraoke);
+  for (const b of document.querySelectorAll('#stars .star')) b.addEventListener('click', () => setRating(Number(b.dataset.v)));
+  $('rate-done').addEventListener('click', finishRating);
+  $('history-open').addEventListener('click', openHistory);
+  $('history-close').addEventListener('click', closeHistory);
+  $('spin-price').textContent = SPIN_COST;
+  renderCoins(false);
   $('toggle').addEventListener('click', togglePlay);
   $('tapstart').addEventListener('click', tapStart);
   audio.addEventListener('play', updateToggle);
@@ -746,10 +982,11 @@ async function init() {
     if (state !== 'karaoke' || counting || !trackLoaded) return;
     const d = audio.duration;
     if (audio.currentTime < 5 || (isFinite(d) && audio.currentTime < d - 3)) return;
-    backToWheel('song ended');
+    showRating();
   });
   audio.addEventListener('error', () => {
     if (state !== 'karaoke' || counting || !trackLoaded) return;
+    loadError = true;
     const code = audio.error ? audio.error.code : 0;
     $('lyrics-inner').innerHTML = '';
     const el = document.createElement('div');
