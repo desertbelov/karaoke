@@ -26,9 +26,11 @@
     "lrc": "tracks/mognu.lrc"
   },
   {
-    "title": "Dungeon Парилка",
-    "artist": "",
-    "cover": "tracks/cover4.jpg"
+    "title": "Банька",
+    "artist": "Мс Пох",
+    "cover": "tracks/cover4.jpg",
+    "audio": "tracks/banka.m4a",
+    "lrc": "tracks/banka.lrc"
   },
   {
     "title": "Ворона",
